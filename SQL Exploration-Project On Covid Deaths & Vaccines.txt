@@ -1,0 +1,128 @@
+/*
+Data Exploration on Covid Death + Vaccines
+*/
+
+
+-- let's join
+select *
+from UniversalCovidDeaths a
+join CovidVaccinations b
+ON a.location = b.location
+
+select *
+from UniversalCovidDeaths a
+join CovidVaccinations b
+ON a.location = b.location and a.date = b.date
+
+--looking at vaccination vs population
+select a.date, a.continent, a.location, a.population, b.new_vaccinations
+from UniversalCovidDeaths as a
+join CovidVaccinations as b
+ON a.date = b.date and a.location = b.location
+where a.continent is not null and b.new_vaccinations is not null
+order by 2,3
+
+select a.date, a.continent, a.location, a.population, b.new_vaccinations
+from UniversalCovidDeaths as a
+join CovidVaccinations as b
+ON a.date = b.date and a.location = b.location
+where a.location like 'Mexico' and b.new_vaccinations is not null
+order by 2,3
+
+--using  partition by and window space
+--REVIEW: GAVE THE RESULT BUT WITH AN ERROR MESSAGE
+select a.date, a.continent, a.location, a.population, b.new_vaccinations,
+sum(cast(b.new_vaccinations as int)) OVER (partition by a.location)
+from UniversalCovidDeaths as a
+join CovidVaccinations as b
+ON a.date = b.date and a.location = b.location
+where a.continent is null
+order by 2,3
+
+select a.date, a.continent, a.location, a.population, b.new_vaccinations,
+sum(convert(int,b.new_vaccinations)) OVER (partition by a.location)
+from UniversalCovidDeaths as a
+join CovidVaccinations as b
+ON a.date = b.date and a.location = b.location
+where a.continent is null
+order by 2,3
+
+select a.date, a.continent, a.location, a.population, b.new_vaccinations,
+sum(convert(int,b.new_vaccinations)) OVER (partition by a.location ORDER BY a.location, b.date) as RollingPeopleVaccinated
+from UniversalCovidDeaths as a
+join CovidVaccinations as b
+ON a.date = b.date and a.location = b.location
+where a.continent is null
+order by 2,3
+
+-- USING CTE
+-- population vs vacinnation
+-- NOTE: columns in cte must be same as the extration data
+-- order by can't be used 
+
+
+WITH PopVsVac (date, continent, location, population, new_vaccination, RollingPeopleVaccinated)
+as
+(
+select a.date, a.continent, a.location, a.population, b.new_vaccinations,
+sum(convert(int,b.new_vaccinations)) OVER (partition by a.location ORDER BY a.location, b.date) as RollingPeopleVaccinated
+from UniversalCovidDeaths as a
+join CovidVaccinations as b
+ON a.date = b.date and a.location = b.location
+where a.continent is null
+--order by 2,3
+)
+select *
+from PopVsVac
+
+
+WITH PopVsVac (continent, date, location, population, new_vaccination, RollingPeopleVaccinated)
+as
+(
+select cov.continent, cov.date, cov.location, cov.population, cov.new_vaccinations,
+sum(convert(int,vac.new_vaccinations)) OVER (partition by cov.location ORDER BY cov.location, cov.date) as RollingPeopleVaccinated
+from UniversalCovidDeaths as cov
+join CovidVaccinations as vac
+ON cov.date = vac.date and cov.location = vac.location
+where cov.continent is not null
+--order by 2,3
+)
+select *, (RollingPeopleVaccinated/population)*100
+from PopVsVac
+
+
+--TEMP TABLE
+
+DROP TABLE IF EXISTS #PeopleVaccinatedPercentage
+create table #PeopleVaccinatedPercentage
+(
+Continent varchar(255),
+location varchar(255),
+Date DateTime,
+Population numeric,
+new_vaccination numeric,
+RollingPeopleVaccinated numeric
+)
+
+select cov.continent, cov.date, cov.location, cov.population, cov.new_vaccinations,
+sum(convert(int,vac.new_vaccinations)) OVER (partition by cov.location ORDER BY cov.location, cov.date) as RollingPeopleVaccinated
+from UniversalCovidDeaths as cov
+join CovidVaccinations as vac
+ON cov.date = vac.date and cov.location = vac.location
+where cov.continent is not null
+--order by 2,3
+
+select *, (RollingPeopleVaccinated/population)*100
+from #PeopleVaccinatedPercentage
+
+Create view PercentageOfPeopleVaccinated AS
+select cov.continent, cov.date, cov.location, cov.population, cov.new_vaccinations,
+sum(convert(int,vac.new_vaccinations)) OVER (partition by cov.location ORDER BY cov.location, cov.date) as RollingPeopleVaccinated
+from UniversalCovidDeaths as cov
+join CovidVaccinations as vac
+ON cov.date = vac.date and cov.location = vac.location
+where cov.continent is not null
+--order by 2,3
+
+
+
