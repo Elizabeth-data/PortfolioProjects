@@ -1,0 +1,218 @@
+/*
+Cleaning Data in SQL Queries
+*/
+
+select *
+from [Portfolio Project]..NashvilleHousingData
+
+-- Standardize Date Format/converting sale date
+Select saleDate
+from [Portfolio Project]..NashvilleHousingData
+
+Select saleDate, CONVERT(Date, SaleDate)
+from [Portfolio Project]..NashvilleHousingData
+
+Update NashvilleHousingData
+SET SaleDate = CONVERT(Date,SaleDate)
+
+-- If it doesn't Update properly
+--Run first
+ALTER TABLE NashvilleHousingData
+Add SaleDateConverted Date;
+
+--Run next
+Update NashvilleHousingData
+SET SaleDateConverted = CONVERT(Date,SaleDate)
+
+Select SaleDateConverted, CONVERT(Date, SaleDate)
+from [Portfolio Project]..NashvilleHousingData
+
+
+
+-- Populate Property Address data
+Select PropertyAddress
+From NashvilleHousingData
+--Where PropertyAddress is null
+
+Select data1.ParcelID, data1.PropertyAddress, data2.ParcelID, data2.PropertyAddress
+From NashvilleHousingData data1
+join NashvilleHousingData data2
+on data1.ParcelID = data2.ParcelID
+and data1.[UniqueID ] <> data2.[UniqueID ]
+where data1.PropertyAddress is null
+
+Select data1.ParcelID, data1.PropertyAddress, data2.ParcelID, data2.PropertyAddress, ISNULL(data1.PropertyAddress,data2.PropertyAddress)
+From NashvilleHousingData data1
+join NashvilleHousingData data2
+on data1.ParcelID = data2.ParcelID
+and data1.[UniqueID ] <> data2.[UniqueID ]
+where data1.PropertyAddress is null
+
+update data1
+set PropertyAddress = ISNULL(data1.PropertyAddress,data2.PropertyAddress)
+From NashvilleHousingData data1
+join NashvilleHousingData data2
+on data1.ParcelID = data2.ParcelID
+and data1.[UniqueID ] <> data2.[UniqueID ]
+where data1.PropertyAddress is null
+
+--NOW NONE IS NULL. UPDATE HAS BEEN EFFECTED
+Select *
+From [Portfolio Project]..NashvilleHousingData
+--Where PropertyAddress is null
+order by ParcelID
+
+
+
+-- Breaking out Address into Individual Columns (Address, City, State)
+Select PropertyAddress
+From [Portfolio Project]..NashvilleHousingData
+--Where PropertyAddress is null
+--order by ParcelID
+
+SELECT
+SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) -1 ) as Address,
+SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) + 1 , LEN(PropertyAddress)) as Address
+From [Portfolio Project]..NashvilleHousingData
+
+--Run first
+ALTER TABLE NashvilleHousingData
+Add PropertySplitAddress Nvarchar(255);
+--Run next
+Update NashvilleHousingData
+SET PropertySplitAddress = SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) -1 )
+
+--Run first
+ALTER TABLE NashvilleHousingData
+Add PropertySplitCity Nvarchar(255);
+--Run next
+Update NashvilleHousingData
+SET PropertySplitCity = SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) + 1 , LEN(PropertyAddress))
+
+select *
+From [Portfolio Project]..NashvilleHousingData
+
+---Cleaning Owner Address
+select OwnerAddress
+from NashvilleHousingData
+
+Select
+PARSENAME(REPLACE(OwnerAddress, ',', '.') , 1),
+PARSENAME(REPLACE(OwnerAddress, ',', '.') , 2),
+PARSENAME(REPLACE(OwnerAddress, ',', '.') , 3)
+From NashvilleHousingData
+
+-- this method can also be used cleaning property address
+Select
+PARSENAME(REPLACE(PropertyAddress, ',', '.') , 1),
+PARSENAME(REPLACE(PropertyAddress, ',', '.') , 2)
+From NashvilleHousingData
+
+--Run first
+ALTER TABLE NashvilleHousingData
+Add OwnerSplitAddress Nvarchar(255);
+--Run next
+Update NashvilleHousingData
+SET OwnerSplitAddress = PARSENAME(REPLACE(OwnerAddress, ',', '.') , 3)
+
+--Run first
+ALTER TABLE NashvilleHousingData
+Add OwnerSplitCity Nvarchar(255);
+--Run next
+Update NashvilleHousingData
+SET OwnerSplitCity = PARSENAME(REPLACE(OwnerAddress, ',', '.') , 2)
+
+--Run first
+ALTER TABLE NashvilleHousingData
+Add OwnerSplitState Nvarchar(255);
+--Run next
+Update NashvilleHousingData
+SET OwnerSplitState = PARSENAME(REPLACE(OwnerAddress, ',', '.') , 1)
+select *
+from NashvilleHousingData
+
+
+
+-- Change Y and N to Yes and No in "Sold as Vacant" field as seen in
+Select Distinct(SoldAsVacant)
+from NashvilleHousingData
+
+Select Distinct(SoldAsVacant), count(soldasvacant)
+from NashvilleHousingData
+Group by SoldAsVacant
+
+Select Distinct(SoldAsVacant), count(soldasvacant)
+from NashvilleHousingData
+Group by SoldAsVacant
+order by 2
+
+Select SoldAsVacant, 
+CASE When SoldAsVacant = 'Y' THEN 'Yes'
+When SoldAsVacant = 'N' THEN 'No'
+ELSE SoldAsVacant
+END
+From NashvilleHousingData
+
+Update NashvilleHousingData
+SET SoldAsVacant = 
+CASE When SoldAsVacant = 'Y' THEN 'Yes'
+When SoldAsVacant = 'N' THEN 'No'
+ELSE SoldAsVacant
+END
+
+--Now check for effected changes
+Select Distinct(SoldAsVacant), count(soldasvacant)
+from NashvilleHousingData
+Group by SoldAsVacant
+order by 2
+
+
+
+
+-- Remove Duplicates
+-- Use this to check and duplicate
+WITH RowNumCTE AS(
+Select *,
+ROW_NUMBER() OVER (
+PARTITION BY ParcelID, 
+PropertyAddress, SalePrice, SaleDate, LegalReference
+ORDER BY UniqueID
+) row_num
+
+from NashvilleHousingData
+--order by ParcelID
+)
+Select *
+From RowNumCTE
+--Where row_num > 1
+Order by PropertyAddress
+
+--delecting duplicate
+WITH RowNumCTE AS(
+Select *,
+ROW_NUMBER() OVER (
+PARTITION BY ParcelID, 
+PropertyAddress, SalePrice, SaleDate, LegalReference
+ORDER BY UniqueID
+) row_num
+
+from NashvilleHousingData
+--order by ParcelID
+)
+delete
+From RowNumCTE
+Where row_num > 1
+--Order by PropertyAddress
+
+
+
+
+
+-- Delete Unused Columns
+--confirm before delecting and recheck with this after deleting
+Select *
+From NashvilleHousingData
+
+ALTER TABLE NashvilleHousingData
+DROP COLUMN SaleDate, OwnerAddress, PropertyAddress, TaxDistrict
+
